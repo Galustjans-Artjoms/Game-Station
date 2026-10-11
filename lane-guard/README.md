@@ -14,20 +14,29 @@ python main.py
 
 | Key / input | Action |
 |-------------|--------|
+| `Q` | **Pulse** turret — balanced |
+| `W` | **Needle** turret — cheap, rapid fire |
+| `E` | **Rail** turret — expensive, heavy, pierces |
 | `1` `2` `3` | Select lane (or pick upgrade after a wave) |
-| `Space` / click | Place turret on selected / clicked lane |
-| `Enter` | Start first wave (from idle) |
+| `Space` / click | Place selected weapon on lane |
+| `Enter` | Start first wave |
 | `R` | Restart after win/lose |
 | `Esc` | Quit |
 
+## Weapons (design roles)
+
+| Weapon | Cost | Role |
+|--------|------|------|
+| Pulse | 12 | Default all-rounder |
+| Needle | 8 | Spam / early economy |
+| Rail | 18 | Slow nuke, pierces 2 rats |
+
+Balance numbers live in `CONFIG["weapons"]` at the top of `main.py`.
+
 ## Design notes
 
-**Loop:** place turrets → clear wave of neon rats → pick 1 of 3 upgrades → harder wave → survive all waves.
+**Loop:** pick weapon → place on lanes → clear wave → upgrade → harder rats.
 
-**Why neon rats:** readable silhouettes on a dark HUD; “threat crawling down pipes” fantasy without needing spritesheets.
+**Juice:** run-cycle rats, trails, muzzle flash, hit flash, death bursts, floating damage, screen shake, wave banners, distinct turret silhouettes per weapon.
 
-**Balance knobs:** all in `CONFIG` at the top of `main.py` (HP scale, spawn gap, turret cost, upgrade mults) — change numbers, replay, note what felt fair.
-
-**Juice / animation:** run-cycle rats, trails, muzzle flash, hit flash, death bursts, floating damage, screen shake, wave banners, spawn-gate pulse, spinning turret rings.
-
-**Next iterations:** rats that chew turrets, elite “king rat”, sell/move turrets, short tutorial overlay.
+**Next:** rats chew turrets, king rat, sell/move, short tutorial.
