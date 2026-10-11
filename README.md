@@ -1,7 +1,7 @@
 # Game Station
 
 Small **playable prototypes** for game-design practice / portfolio.  
-Built as single-file browser games (HTML + JS) — open locally, no build step.
+HTML + JS in the browser, plus a **Python / pygame** neon lane defender.
 
 > Status: **prototypes / alpha** — balance and UX can change. Made to show mechanics thinking, not polished production art.
 
@@ -11,12 +11,25 @@ Built as single-file browser games (HTML + JS) — open locally, no build step.
 |------|--------|--------|
 | **Space Arena** | [`space-arena/`](space-arena/) | Twin-stick / arena survival: waves, bosses, between-wave upgrades. Tuning lives in a top-level `CONFIG` block. |
 | **Fraud Catcher** | [`fraud-catcher/`](fraud-catcher/) | Real-time judgment game: approve / block payment cards under time & budget pressure. |
+| **Lane Guard — Neon Rats** | [`lane-guard/`](lane-guard/) | Python/pygame: 3 neon lanes, glowing rats, turrets + between-wave upgrades. |
 
 ### How to play
 
+**HTML games**
+
 1. Clone the repo (or download a folder).
-2. Open `space-arena/index.html` or `fraud-catcher/index.html` in a modern browser (Chrome / Edge / Firefox).  
-   Or from the folder: `npx --yes serve .` then open the printed URL.
+2. Open `space-arena/index.html` or `fraud-catcher/index.html` in a modern browser.  
+   Or: `npx --yes serve .` then open the printed URL.
+
+**Lane Guard (Python)**
+
+```powershell
+cd lane-guard
+pip install -r requirements.txt
+python main.py
+```
+
+Details: [`lane-guard/README.md`](lane-guard/README.md).
 
 ---
 
@@ -43,6 +56,18 @@ Built as single-file browser games (HTML + JS) — open locally, no build step.
 - Readable chips / risk tags = readable “rules the player can learn”.
 
 **What I’d iterate next:** short onboarding hand of labeled examples, difficulty tiers, end-of-run debrief (“you blocked X legit / missed Y fraud”).
+
+---
+
+## Lane Guard — Neon Rats — design notes
+
+**Player loop:** place neon turrets on 3 lanes → rats crawl toward the base → clear wave → pick upgrade → harder stats.
+
+**Fantasy:** cyan HUD + magenta **neon rats** (readable without art pipeline).
+
+**Design practice:** economy (energy vs turret cost), lane attention, explicit `CONFIG` scaling (`hp_scale`, `spawn_gap`, upgrade mults).
+
+**Next:** rats attack turrets, elite rat, sell/move, 30-second tutorial.
 
 ---
 
