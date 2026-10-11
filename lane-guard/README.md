@@ -24,11 +24,11 @@ On boot pick **LOW / HARD / DOOM** (`1` `2` `3` or ↑↓ + Enter).
 
 | Input | Action |
 |-------|--------|
-| `Q` | **Pulse** turret |
-| `W` | **Needle** turret |
-| `E` | **Rail** turret |
+| `Q` | **Pulse** — energy bolts |
+| `W` | **Beam** — cutting laser (hitscan line) |
+| `E` | **Mortar** — lob bombs with AOE |
 | `A` | **Wall** — blocks / soaks chew damage |
-| `B` | **Bomb** — timed blast across nearby lanes |
+| `B` | **Bomb** — panic timed blast |
 | `1` `2` `3` | Select lane (or upgrade after a wave) |
 | `Space` / click | Place selected build |
 | `Enter` | Start wave |
