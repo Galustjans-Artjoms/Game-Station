@@ -10,33 +10,35 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Difficulty
+
+On boot pick **LOW / HARD / DOOM** (`1` `2` `3` or ↑↓ + Enter).
+
+| Mode | Feel |
+|------|------|
+| LOW | More base HP, fewer weaker rats |
+| HARD | Standard pressure |
+| DOOM | Thin base, fat fast rats, more waves |
+
 ## Controls
 
-| Key / input | Action |
-|-------------|--------|
-| `Q` | **Pulse** turret — balanced |
-| `W` | **Needle** turret — cheap, rapid fire |
-| `E` | **Rail** turret — expensive, heavy, pierces |
-| `1` `2` `3` | Select lane (or pick upgrade after a wave) |
-| `Space` / click | Place selected weapon on lane |
-| `Enter` | Start first wave |
-| `R` | Restart after win/lose |
+| Input | Action |
+|-------|--------|
+| `Q` | **Pulse** turret |
+| `W` | **Needle** turret |
+| `E` | **Rail** turret |
+| `A` | **Wall** — blocks / soaks chew damage |
+| `B` | **Bomb** — timed blast across nearby lanes |
+| `1` `2` `3` | Select lane (or upgrade after a wave) |
+| `Space` / click | Place selected build |
+| `Enter` | Start wave |
+| `R` | Restart → difficulty select |
 | `Esc` | Quit |
-
-## Weapons (design roles)
-
-| Weapon | Cost | Role |
-|--------|------|------|
-| Pulse | 12 | Default all-rounder |
-| Needle | 8 | Spam / early economy |
-| Rail | 18 | Slow nuke, pierces 2 rats |
-
-Balance numbers live in `CONFIG["weapons"]` at the top of `main.py`.
 
 ## Design notes
 
-**Loop:** pick weapon → place on lanes → clear wave → upgrade → harder rats.
+- Turrets have **HP**; rats chew walls and turrets before the base.
+- Turrets shoot **cross-lane** inside range.
+- Bombs are joke / panic buttons with a short fuse and AOE.
 
-**Juice:** run-cycle rats, trails, muzzle flash, hit flash, death bursts, floating damage, screen shake, wave banners, distinct turret silhouettes per weapon.
-
-**Next:** rats chew turrets, king rat, sell/move, short tutorial.
+Balance lives in `CONFIG` at the top of `main.py`.
