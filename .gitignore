@@ -3,3 +3,7 @@ Thumbs.db
 *.pdf
 .idea/
 .vscode/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
