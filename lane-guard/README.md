@@ -28,4 +28,6 @@ python main.py
 
 **Balance knobs:** all in `CONFIG` at the top of `main.py` (HP scale, spawn gap, turret cost, upgrade mults) — change numbers, replay, note what felt fair.
 
+**Juice / animation:** run-cycle rats, trails, muzzle flash, hit flash, death bursts, floating damage, screen shake, wave banners, spawn-gate pulse, spinning turret rings.
+
 **Next iterations:** rats that chew turrets, elite “king rat”, sell/move turrets, short tutorial overlay.
