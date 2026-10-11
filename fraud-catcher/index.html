@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Fraud Catcher</title>
+<style>
+:root{--bg:#0d1220;--panel:#151c30;--line:#26304d;--txt:#e8ecf7;--mut:#8a94b3;--good:#2ee59d;--bad:#ff4d6d;--warn:#ffb547;--acc:#6c8cff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:radial-gradient(1200px 600px at 50% -10%,#1d2850,var(--bg));color:var(--txt);font:14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+#app{position:relative;max-width:560px;height:100%;margin:0 auto;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(13,18,32,.7);backdrop-filter:blur(6px);z-index:5}
+.logo{font-weight:800;letter-spacing:.5px;font-size:16px;white-space:nowrap}.logo b{color:var(--acc)}
+.hud{display:flex;gap:10px;margin-left:auto;align-items:center;font-variant-numeric:tabular-nums}
+.stat{display:flex;flex-direction:column;align-items:flex-end}.stat small{color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.6px}.stat span{font-weight:700}
+.btn-ic{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer;flex:none}
+#budgetbar{height:4px;background:#2a1520}#budgetfill{height:100%;width:100%;background:linear-gradient(90deg,var(--bad),var(--warn),var(--good));transition:width .3s}
+#field{position:relative;flex:1;overflow:hidden;touch-action:manipulation}
+.lane{position:absolute;top:0;bottom:0;border-right:1px dashed rgba(255,255,255,.04)}
+#gate{position:absolute;left:0;right:0;bottom:0;height:44px;background:linear-gradient(transparent,rgba(46,229,157,.12));border-top:1px solid rgba(46,229,157,.35);display:flex;align-items:center;justify-content:center;color:rgba(46,229,157,.7);font-size:11px;letter-spacing:2px;text-transform:uppercase;pointer-events:none}
+.card{position:absolute;top:0;left:0;padding:8px 9px;border-radius:12px;background:linear-gradient(160deg,#1c2542,#141b31);border:1px solid #2f3b62;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer;will-change:transform;transition:border-color .15s,box-shadow .15s}
+.card:hover{border-color:var(--acc);box-shadow:0 0 0 2px rgba(108,140,255,.35),0 6px 18px rgba(0,0,0,.35)}
+.card .top{display:flex;justify-content:space-between;align-items:baseline;gap:4px}
+.amt{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}.amt.hi{color:var(--warn)}
+.tm{color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}.tm.night{color:#b59cff}
+.mer{font-size:12px;color:#c7cee6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0}
+.mer.risk{color:var(--warn)}
+.geo{font-size:12px;color:var(--mut);display:flex;justify-content:space-between;gap:4px;align-items:center;white-space:nowrap}.geo .mm{color:var(--bad);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+.chip{font-size:10px;padding:2px 5px;border-radius:6px;background:#26304d;color:#cfd6ee;white-space:nowrap}
+.chip.r{background:rgba(255,77,109,.16);color:#ff9aac}.chip.g{background:rgba(46,229,157,.14);color:#86f3c6}
+.card.done{pointer-events:none;transition:opacity .5s .25s,transform .5s}
+.card.done.ok{border-color:var(--good);box-shadow:0 0 18px rgba(46,229,157,.45)}
+.card.done.no{border-color:var(--bad);box-shadow:0 0 18px rgba(255,77,109,.5)}
+.stamp{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:clamp(13px,4vw,19px);letter-spacing:1px;border-radius:12px;background:rgba(10,14,26,.72)}
+.stamp.ok{color:var(--good)}.stamp.no{color:var(--bad)}
+.float{position:absolute;font-weight:800;pointer-events:none;animation:up .9s ease-out forwards;z-index:4;text-shadow:0 2px 6px #000}
+@keyframes up{to{transform:translateY(-50px);opacity:0}}
+#combo{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-weight:900;font-size:20px;color:var(--warn);opacity:0;pointer-events:none;z-index:4;text-shadow:0 2px 10px rgba(255,181,71,.5)}
+#combo.pop{animation:pop .7s ease-out}
+@keyframes pop{0%{opacity:1;transform:translateX(-50%) scale(1.5)}70%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1)}}
+#flash{position:absolute;inset:0;pointer-events:none;background:var(--bad);opacity:0;z-index:3;transition:opacity .35s}
+#lvl{position:absolute;top:40%;left:0;right:0;text-align:center;font-size:26px;font-weight:900;color:var(--acc);opacity:0;pointer-events:none;z-index:4}
+#lvl.pop{animation:lv 1.4s ease-out}@keyframes lv{0%,80%{opacity:1}100%{opacity:0}}
+.overlay{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(8,11,20,.82);backdrop-filter:blur(4px)}
+.overlay.hide{display:none}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:100%;overflow:auto}
+.box h1{margin:0 0 4px;font-size:30px}.box h1 b{color:var(--acc)}
+.sub{color:var(--mut);margin-bottom:14px}
+.rules{text-align:left;margin:0 0 16px;padding:0;list-style:none}.rules li{padding:6px 0;border-bottom:1px solid var(--line)}
+.btn{background:linear-gradient(180deg,#7b98ff,#5574f0);border:0;color:#fff;font-weight:800;font-size:16px;padding:12px 26px;border-radius:12px;cursor:pointer;box-shadow:0 6px 20px rgba(108,140,255,.4)}
+.btn:active{transform:translateY(1px)}
+.link{background:none;border:0;color:var(--acc);cursor:pointer;font-size:13px;margin-top:12px;text-decoration:underline}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.grid div{background:#0f1528;border:1px solid var(--line);border-radius:10px;padding:8px}.grid small{display:block;color:var(--mut);font-size:11px}.grid b{font-size:18px}
+.rank{font-size:20px;font-weight:900;color:var(--warn);margin:6px 0}
+#help{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(8,11,20,.85)}
+#help.hide{display:none}
+#help table{width:100%;border-collapse:collapse;text-align:left;font-size:13px;margin:8px 0}
+#help td{padding:5px 4px;border-bottom:1px solid var(--line)}#help td:last-child{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+.pos{color:var(--bad)}.neg{color:var(--good)}
+.kbd{color:var(--mut);font-size:11px;margin-top:10px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo">🕵️ Fraud<b>Catcher</b></div>
+    <div class="hud">
+      <div class="stat"><small>Score</small><span id="score">0</span></div>
+      <div class="stat"><small>Trust</small><span id="lives">💙💙💙</span></div>
+      <div class="stat"><small>Loss budget</small><span id="budget">$2,000</span></div>
+      <button class="btn-ic" id="helpBtn" title="How fraud signals work (H)">?</button>
+      <button class="btn-ic" id="muteBtn" title="Mute (M)">🔊</button>
+    </div>
+  </header>
+  <div id="budgetbar"><div id="budgetfill"></div></div>
+  <div id="field">
+    <div id="gate">approved ▸ settles here</div>
+    <div id="combo"></div><div id="lvl"></div><div id="flash"></div>
+  </div>
+
+  <div class="overlay" id="start">
+    <div class="box">
+      <h1>🕵️ Fraud<b>Catcher</b></h1>
+      <div class="sub">You're the fraud analyst on night shift. Payments are flowing in.</div>
+      <ul class="rules">
+        <li>👆 <b>Tap a card to BLOCK it</b> before it settles. Let legit ones pass.</li>
+        <li>💸 Missed fraud = chargeback from your <b>$2,000 loss budget</b>.</li>
+        <li>💔 Blocking a real customer costs <b>trust</b> — lose 3 and you're done.</li>
+      </ul>
+      <button class="btn" id="startBtn">Start shift</button><br>
+      <button class="link" id="helpLink">How fraud signals work</button>
+      <div class="kbd">Keys: 1/2/3 block lowest card in lane · H help · M mute · P pause</div>
+    </div>
+  </div>
+
+  <div class="overlay hide" id="over">
+    <div class="box">
+      <h1 id="overTitle">Shift over</h1>
+      <div class="sub" id="overWhy"></div>
+      <div class="rank" id="rank"></div>
+      <div class="grid">
+        <div><small>Score</small><b id="sScore"></b></div>
+        <div><small>Accuracy</small><b id="sAcc"></b></div>
+        <div><small>False positive rate</small><b id="sFpr"></b></div>
+        <div><small>Money saved</small><b id="sSaved"></b></div>
+        <div><small>Fraud caught</small><b id="sCaught"></b></div>
+        <div><small>Best streak</small><b id="sStreak"></b></div>
+      </div>
+      <button class="btn" id="againBtn">New shift</button><br>
+      <button class="link" id="helpLink2">How fraud signals work</button>
+    </div>
+  </div>
+
+  <div id="help" class="hide">
+    <div class="box">
+      <h2 style="margin:0">How fraud signals work</h2>
+      <div class="sub" style="margin:4px 0 0">Each signal adds risk points. <b>Total ≥ 3 → almost always fraud.</b> 2 is borderline, ≤ 1 is almost always legit.</div>
+      <table>
+        <tr><td>🔁 5 tries in 1 min (velocity)</td><td class="pos">+3</td></tr>
+        <tr><td>🌍 IP country ≠ card country</td><td class="pos">+2</td></tr>
+        <tr><td>🎁 Risky merchant (gift cards, crypto, wire)</td><td class="pos">+2</td></tr>
+        <tr><td>📱 New device</td><td class="pos">+1</td></tr>
+        <tr><td>🌙 Night time (00:00–05:59 local)</td><td class="pos">+1</td></tr>
+        <tr><td>💰 High amount (≥ $800)</td><td class="pos">+1</td></tr>
+        <tr><td>✉️ Email created today</td><td class="pos">+1</td></tr>
+        <tr><td>🔐 3-D Secure passed</td><td class="neg">−2</td></tr>
+        <tr><td>⭐ Returning customer</td><td class="neg">−1</td></tr>
+      </table>
+      <div class="sub">Every card reveals the truth when resolved — learn the patterns. Later shifts mix signals more subtly.</div>
+      <button class="btn" id="helpClose">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id)};
+var params=new URLSearchParams(location.search);
+var DEMO=params.get('demo')==='1';
+
+/* ---------- RNG (seedable for demo) ---------- */
+var seed=DEMO?12345:(Date.now()>>>0);
+function rnd(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}
+function pick(a){return a[(rnd()*a.length)|0]}
+function fmt(n){return '$'+Math.round(n).toLocaleString('en-US')}
+
+/* ---------- Data ---------- */
+var COUNTRIES=[['US','🇺🇸'],['GB','🇬🇧'],['DE','🇩🇪'],['FR','🇫🇷'],['LV','🇱🇻'],['ES','🇪🇸'],['NL','🇳🇱'],['SE','🇸🇪'],['PL','🇵🇱'],['IT','🇮🇹'],['CA','🇨🇦'],['JP','🇯🇵'],['BR','🇧🇷'],['NG','🇳🇬'],['RU','🇷🇺'],['VN','🇻🇳']];
+var SAFE_M=['☕ Bean & Brew Café','🛒 FreshMart Groceries','🎬 StreamFlix','🚕 RideNow','👟 Stride Shoes','📚 PageTurner Books','🍕 Napoli Pizza','⛽ Shell Station','🏨 Comfort Inn','🎧 SoundShop','💊 CityPharmacy','✈️ AirBaltic'];
+var RISK_M=['🎁 GiftCardHub','🪙 CoinSwap Crypto','💸 QuickWire Transfer','🎮 GameKeys Store'];
+var CARDS=['VISA','Mastercard','Amex','Maestro'];
+var W={velocity:3,geo:2,merchant:2,device:1,night:1,amount:1,email:1,tds:-2,returning:-1};
+
+function makeTxn(diff){
+  // diff 0..1 : 0 = obvious cases, 1 = scores cluster around threshold
+  var best=null;
+  for(var tries=0;tries<40;tries++){
+    var s={velocity:rnd()<.18,geo:rnd()<.28,merchant:rnd()<.2,device:rnd()<.32,night:rnd()<.3,amount:rnd()<.25,email:diff>.3&&rnd()<.22,tds:rnd()<.3,returning:rnd()<.35};
+    var sc=0;for(var k in s)if(s[k])sc+=W[k];
+    var dist=Math.abs(sc-2.5); // threshold between 2 and 3
+    var want=diff<.25?(dist>=1.5):diff<.6?(dist>=0.5&&dist<=2.5):(dist<=1.5);
+    best={s:s,sc:sc};
+    if(want)break;
+  }
+  var s=best.s,sc=best.sc;
+  // hidden probability: mostly deterministic
+  var p=sc>=4?.97:sc===3?.88:sc===2?.15:sc===1?.04:.01;
+  var fraud=rnd()<p;
+  var home=pick(COUNTRIES.slice(0,12));
+  var ip=s.geo?pick(COUNTRIES.filter(function(c){return c[0]!==home[0]})):home;
+  var hour=s.night?(rnd()*6)|0:6+((rnd()*18)|0);
+  var amount=s.amount?800+rnd()*1700:(s.merchant?25+rnd()*500:4+rnd()*340);
+  return {s:s,score:sc,fraud:fraud,home:home,ip:ip,hour:hour,min:(rnd()*60)|0,amount:amount,
+    merchant:s.merchant?pick(RISK_M):pick(SAFE_M),card:pick(CARDS),last4:1000+((rnd()*9000)|0)};
+}
+
+/* ---------- Audio ---------- */
+var actx=null,muted=false;
+try{muted=localStorage.getItem('fc_muted')==='1'}catch(e){}
+if(DEMO)muted=true;
+function setMuteIcon(){$('muteBtn').textContent=muted?'🔇':'🔊'}
+setMuteIcon();
+function ensureAudio(){if(actx||muted)return;try{var C=window.AudioContext||window.webkitAudioContext;if(C)actx=new C()}catch(e){}}
+function tone(freq,dur,type,vol,slide,delay){
+  if(muted||!actx)return;
+  try{
+    var t=actx.currentTime+(delay||0),o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
+    if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+dur);
+    g.gain.setValueAtTime(vol||.12,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+dur+.02);
+  }catch(e){}
+}
+var SFX={
+  catch:function(c){var b=520+Math.min(c,10)*40;tone(b,.09,'square',.07);tone(b*1.5,.12,'square',.06,null,.07)},
+  fp:function(){tone(220,.25,'sawtooth',.08,110)},
+  miss:function(){tone(160,.4,'sawtooth',.1,60);tone(90,.4,'square',.05,50,.05)},
+  pass:function(){tone(880,.04,'sine',.03)},
+  level:function(){[523,659,784,1046].forEach(function(f,i){tone(f,.12,'triangle',.07,null,i*.08)})},
+  over:function(){[392,330,262,196].forEach(function(f,i){tone(f,.22,'triangle',.08,null,i*.16)})}
+};
+
+/* ---------- State ---------- */
+var field=$('field'),LANES=3,BUDGET=2000;
+var G=null,running=false,paused=false,last=0,laneEls=[];
+for(var i=0;i<LANES;i++){var l=document.createElement('div');l.className='lane';field.appendChild(l);laneEls.push(l)}
+var dims={w:0,h:0,cw:0,lw:0};
+function measure(){
+  dims.w=field.clientWidth;dims.h=field.clientHeight;dims.lw=dims.w/LANES;dims.cw=dims.lw-10;
+  laneEls.forEach(function(l,i){l.style.left=(i*dims.lw)+'px';l.style.width=dims.lw+'px'});
+  if(G)G.cards.forEach(function(c){c.el.style.width=dims.cw+'px';c.x=c.lane*dims.lw+5});
+}
+window.addEventListener('resize',measure);
+
+function newGame(){
+  if(G)G.cards.forEach(function(c){c.el.remove()});
+  G={t:0,score:0,lives:3,budget:BUDGET,cards:[],spawnT:.6,level:1,combo:0,best:0,
+     tp:0,fp:0,tn:0,fn:0,saved:0,lost:0,legitTotal:0,fraudTotal:0,id:0,botT:0};
+  updHud();
+}
+function diff(){return Math.min(1,G.t/150)}
+function speed(){return dims.h/Math.max(3.0,7.5-G.t*0.035)} // px/s
+function spawnEvery(){return Math.max(.62,1.55-G.t*0.008)}
+
+function cardHTML(x){
+  var s=x.s,h=('0'+x.hour).slice(-2)+':'+('0'+x.min).slice(-2),chips='';
+  if(s.velocity)chips+='<span class="chip r">🔁 5 tries/1 min</span>';
+  if(s.device)chips+='<span class="chip r">📱 new device</span>';
+  if(s.email)chips+='<span class="chip r">✉️ email: today</span>';
+  if(s.tds)chips+='<span class="chip g">🔐 3DS ✓</span>';
+  if(s.returning)chips+='<span class="chip g">⭐ returning</span>';
+  if(!chips)chips='<span class="chip">no flags</span>';
+  return '<div class="top"><span class="amt'+(s.amount?' hi':'')+'">'+fmt(x.amount)+'</span><span class="tm'+(s.night?' night':'')+'">'+(s.night?'🌙 ':'')+h+'</span></div>'+
+    '<div class="mer'+(s.merchant?' risk':'')+'">'+x.merchant+'</div>'+
+    '<div class="geo"><span>💳'+x.home[1]+' '+x.card+'</span><span'+(s.geo?' class="mm"':'')+'>'+(s.geo?'≠ ':'')+'IP'+x.ip[1]+'</span></div>'+
+    '<div class="chips">'+chips+'</div>';
+}
+
+function spawn(){
+  var free=[];
+  for(var l=0;l<LANES;l++){
+    var ok=true;
+    for(var j=0;j<G.cards.length;j++){var c=G.cards[j];if(!c.done&&c.lane===l&&c.y<(c.h||130)+14){ok=false;break}}
+    if(ok)free.push(l);
+  }
+  if(!free.length)return;
+  var lane=pick(free),x=makeTxn(diff());
+  var el=document.createElement('div');el.className='card';el.innerHTML=cardHTML(x);
+  el.style.width=dims.cw+'px';
+  field.appendChild(el);
+  var c={id:++G.id,el:el,x:lane*dims.lw+5,y:0,lane:lane,t:x,done:false,h:el.offsetHeight};
+  c.y=-c.h;
+  el.style.transform='translate3d('+c.x+'px,'+c.y+'px,0)';
+  el.addEventListener('pointerdown',function(e){e.preventDefault();block(c)});
+  G.cards.push(c);
+  if(x.fraud)G.fraudTotal++;else G.legitTotal++;
+}
+
+function floatText(c,txt,col){
+  var f=document.createElement('div');f.className='float';f.textContent=txt;f.style.color=col;
+  f.style.left=(c.x+dims.cw/2-30)+'px';f.style.top=Math.max(10,Math.min(dims.h-60,c.y+20))+'px';
+  field.appendChild(f);setTimeout(function(){f.remove()},950);
+}
+function finish(c,ok,label){
+  c.done=true;c.el.classList.add('done',ok?'ok':'no');
+  var st=document.createElement('div');st.className='stamp '+(ok?'ok':'no');st.textContent=label;c.el.appendChild(st);
+  setTimeout(function(){c.el.style.opacity='0'},20);
+  setTimeout(function(){c.el.remove();var i=G.cards.indexOf(c);if(i>=0)G.cards.splice(i,1)},800);
+}
+function comboPop(){
+  if(G.combo>=3){var e=$('combo');e.textContent='🔥 x'+mult()+'  streak '+G.combo;e.classList.remove('pop');void e.offsetWidth;e.classList.add('pop')}
+}
+function mult(){return 1+Math.min(4,Math.floor(G.combo/3))}
+function flash(){var f=$('flash');f.style.opacity='.25';setTimeout(function(){f.style.opacity='0'},120)}
+
+function block(c){
+  if(!running||paused||c.done)return;
+  ensureAudio();
+  if(c.t.fraud){
+    G.tp++;G.combo++;G.best=Math.max(G.best,G.combo);G.saved+=c.t.amount;
+    var pts=100*mult();G.score+=pts;
+    finish(c,true,'FRAUD ✓');floatText(c,'+'+pts,'#2ee59d');SFX.catch(G.combo);comboPop();
+  }else{
+    G.fp++;G.combo=0;G.lives--;G.score=Math.max(0,G.score-75);
+    finish(c,false,'LEGIT ✗');floatText(c,'Angry customer −75','#ff4d6d');SFX.fp();flash();
+  }
+  updHud();checkOver();
+}
+function settle(c){
+  if(c.t.fraud){
+    G.fn++;G.combo=0;var loss=c.t.amount+25;G.budget-=loss;G.lost+=loss;
+    finish(c,false,'CHARGEBACK');floatText(c,'−'+fmt(loss),'#ff4d6d');SFX.miss();flash();
+  }else{
+    G.tn++;G.score+=10;finish(c,true,'OK');SFX.pass();
+  }
+  updHud();checkOver();
+}
+function updHud(){
+  $('score').textContent=G.score.toLocaleString('en-US');
+  $('lives').textContent='💙'.repeat(Math.max(0,G.lives))+'🖤'.repeat(3-Math.max(0,G.lives));
+  $('budget').textContent=fmt(Math.max(0,G.budget));
+  $('budgetfill').style.width=Math.max(0,G.budget/BUDGET*100)+'%';
+}
+function checkOver(){
+  if(G.lives<=0)gameOver('Too many real customers blocked — support queue exploded.');
+  else if(G.budget<=0)gameOver('Chargebacks blew the fraud-loss budget.');
+}
+function rankFor(acc,fpr,score){
+  if(acc>=.93&&fpr<=.05&&score>=3000)return '🏆 Fraud Whisperer';
+  if(acc>=.88&&score>=2000)return '🥇 Head of Risk';
+  if(acc>=.8&&score>=1000)return '🥈 Senior Fraud Analyst';
+  if(acc>=.65)return '🥉 Risk Analyst';
+  return '🎓 Junior Analyst (in training)';
+}
+function gameOver(why){
+  running=false;SFX.over();
+  var dec=G.tp+G.fp+G.tn+G.fn,acc=dec?(G.tp+G.tn)/dec:0,fpr=(G.fp+G.tn)?G.fp/(G.fp+G.tn):0;
+  $('overWhy').textContent=why+' You lasted '+Math.round(G.t)+'s.';
+  $('rank').textContent=rankFor(acc,fpr,G.score);
+  $('sScore').textContent=G.score.toLocaleString('en-US');
+  $('sAcc').textContent=Math.round(acc*100)+'%';
+  $('sFpr').textContent=Math.round(fpr*100)+'%';
+  $('sSaved').textContent=fmt(G.saved);
+  $('sCaught').textContent=G.tp+' / '+(G.tp+G.fn);
+  $('sStreak').textContent=G.best;
+  $('over').classList.remove('hide');
+}
+function start(){
+  ensureAudio();if(actx&&actx.state==='suspended')actx.resume();
+  $('start').classList.add('hide');$('over').classList.add('hide');
+  measure();newGame();running=true;paused=false;last=performance.now();
+}
+
+/* ---------- Demo bot (only ?demo=1) ---------- */
+function bot(dt){
+  G.botT-=dt;if(G.botT>0)return;G.botT=.35;
+  for(var i=0;i<G.cards.length;i++){var c=G.cards[i];
+    if(!c.done&&c.y>dims.h*.35&&c.t.score>=3&&rnd()<.8){block(c);return}}
+}
+
+/* ---------- Loop ---------- */
+var lastRaf=0;
+function frame(now){lastRaf=performance.now();step(now);requestAnimationFrame(frame)}
+// fallback ticker: keeps sim alive where rAF is throttled (e.g. headless capture); idle when rAF runs
+setInterval(function(){var n=performance.now();if(n-lastRaf>120)step(n)},33);
+function step(now){
+  var dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;
+  if(running&&!paused){
+    G.t+=dt;
+    var lv=1+Math.floor(G.t/25);
+    if(lv>G.level){G.level=lv;var e=$('lvl');e.textContent='Shift intensity '+lv;e.classList.remove('pop');void e.offsetWidth;e.classList.add('pop');SFX.level()}
+    G.spawnT-=dt;if(G.spawnT<=0){spawn();G.spawnT=spawnEvery()}
+    var v=speed()*dt,limit=dims.h-44;
+    for(var i=0;i<G.cards.length;i++){var c=G.cards[i];
+      if(c.done)continue;
+      c.y+=v;c.el.style.transform='translate3d('+c.x+'px,'+c.y+'px,0)';
+      if(c.y+c.h*.5>limit){settle(c);if(!running)break}
+    }
+    if(DEMO&&running)bot(dt);
+  }
+}
+
+/* ---------- UI ---------- */
+var pausedByHelp=false;
+function openHelp(){$('help').classList.remove('hide');if(running&&!paused){paused=true;pausedByHelp=true}}
+function closeHelp(){$('help').classList.add('hide');if(pausedByHelp){paused=false;pausedByHelp=false;last=performance.now()}}
+$('startBtn').onclick=start;$('againBtn').onclick=start;
+$('helpBtn').onclick=openHelp;$('helpLink').onclick=openHelp;$('helpLink2').onclick=openHelp;$('helpClose').onclick=closeHelp;
+$('muteBtn').onclick=function(){muted=!muted;try{localStorage.setItem('fc_muted',muted?'1':'0')}catch(e){}setMuteIcon();if(!muted){ensureAudio();tone(660,.08,'sine',.06)}};
+document.addEventListener('keydown',function(e){
+  var k=e.key.toLowerCase();
+  if(k==='m')$('muteBtn').onclick();
+  else if(k==='h'||k==='?'){$('help').classList.contains('hide')?openHelp():closeHelp()}
+  else if(k==='escape'&&!$('help').classList.contains('hide'))closeHelp();
+  else if(k==='p'&&running&&$('help').classList.contains('hide')){paused=!paused;last=performance.now()}
+  else if((k==='enter'||k===' ')&&!running){e.preventDefault();start()}
+  else if(running&&(k==='1'||k==='2'||k==='3')){
+    var lane=+k-1,best=null;
+    G.cards.forEach(function(c){if(!c.done&&c.lane===lane&&(!best||c.y>best.y))best=c});
+    if(best)block(best);
+  }
+});
+var pausedByHide=false;
+document.addEventListener('visibilitychange',function(){if(document.hidden){if(running&&!paused){paused=true;pausedByHide=true}}else{if(pausedByHide){paused=false;pausedByHide=false}last=performance.now()}});
+
+measure();newGame();
+requestAnimationFrame(function(t){last=t;requestAnimationFrame(frame)});
+if(DEMO)start();
+})();
+</script>
+</body>
+</html>
