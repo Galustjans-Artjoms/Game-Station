@@ -33,7 +33,9 @@ Details: [`lane-guard/README.md`](lane-guard/README.md).
 
 ---
 
-## Space Arena — design notes
+## Space Arena
+
+![Space Arena in action — wave combat](docs/images/space-arena-action.png)
 
 **Player loop:** survive wave → pick 1 of 3 upgrades → harder wave → beat final boss (optional endless).
 
@@ -46,7 +48,9 @@ Details: [`lane-guard/README.md`](lane-guard/README.md).
 
 ---
 
-## Fraud Catcher — design notes
+## Fraud Catcher
+
+![Fraud Catcher in action — cards under pressure](docs/images/fraud-catcher-action.png)
 
 **Player loop:** cards fall → spot fraud signals (amount, merchant, geo, time) → approve or reject before they hit the gate → manage false positives vs misses under a budget bar.
 
@@ -59,7 +63,9 @@ Details: [`lane-guard/README.md`](lane-guard/README.md).
 
 ---
 
-## Lane Guard — Neon Rats — design notes
+## Lane Guard — Neon Rats
+
+![Lane Guard in action — neon rats vs turrets](docs/images/lane-guard-action.png)
 
 **Player loop:** place neon turrets on 3 lanes → rats crawl toward the base → clear wave → pick upgrade → harder stats.
 
