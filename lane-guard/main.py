@@ -1,6 +1,6 @@
 """
 Lane Guard — Neon Rats
-Q/W/E turrets · A wall · B bomb · 1/2/3 lane · difficulty Low / Hard / Doom
+Q Pulse bolts · W Beam laser · E Mortar bombs · A wall · B panic bomb
 """
 
 from __future__ import annotations
@@ -23,39 +23,42 @@ CONFIG = {
         "pulse": {
             "label": "PULSE",
             "key": "Q",
+            "mode": "bolt",
             "cost": 12,
             "damage": 9,
             "range": 190,
             "cooldown": 0.55,
             "hp": 40,
             "color": "neon_orange",
-            "blurb": "balanced · cross-lane",
+            "blurb": "energy bolts",
         },
-        "needle": {
-            "label": "NEEDLE",
+        "beam": {
+            "label": "BEAM",
             "key": "W",
-            "cost": 8,
-            "damage": 4,
-            "range": 165,
-            "cooldown": 0.26,
-            "hp": 28,
+            "mode": "laser",
+            "cost": 14,
+            "damage": 5,
+            "range": 240,
+            "cooldown": 0.14,
+            "hp": 32,
             "color": "neon_cyan",
-            "blurb": "cheap rapid · fragile",
+            "blurb": "cutting laser",
         },
-        "rail": {
-            "label": "RAIL",
+        "mortar": {
+            "label": "MORTAR",
             "key": "E",
-            "cost": 18,
-            "damage": 26,
-            "range": 280,
-            "cooldown": 1.15,
-            "pierce": 2,
-            "hp": 55,
+            "mode": "mortar",
+            "cost": 16,
+            "damage": 24,
+            "blast": 78,
+            "range": 300,
+            "cooldown": 1.25,
+            "hp": 50,
             "color": "neon_magenta",
-            "blurb": "pierce · armored",
+            "blurb": "lob bombs · AOE",
         },
     },
-    "weapon_order": ["pulse", "needle", "rail"],
+    "weapon_order": ["pulse", "beam", "mortar"],
     "wall": {
         "label": "WALL",
         "key": "A",
@@ -260,6 +263,29 @@ class Bullet:
 
 
 @dataclass
+class LaserBeam:
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    life: float = 0.12
+    max_life: float = 0.12
+
+
+@dataclass
+class Shell:
+    """Mortar bomb — arcs then explodes."""
+    x: float
+    y: float
+    vx: float
+    vy: float
+    damage: float
+    blast: float
+    life: float = 2.2
+    trail: list[tuple[float, float]] = field(default_factory=list)
+
+
+@dataclass
 class GameState:
     phase: str = "menu"  # menu | idle | spawn | clear | upgrade | win | lose
     difficulty: str = "hard"
@@ -279,10 +305,12 @@ class GameState:
     bombs: list[Bomb] = field(default_factory=list)
     rats: list[Rat] = field(default_factory=list)
     bullets: list[Bullet] = field(default_factory=list)
+    lasers: list[LaserBeam] = field(default_factory=list)
+    shells: list[Shell] = field(default_factory=list)
     particles: list[Particle] = field(default_factory=list)
     floaters: list[Floater] = field(default_factory=list)
     selected_lane: int = 1
-    selected_build: str = "pulse"  # pulse|needle|rail|wall|bomb
+    selected_build: str = "pulse"  # pulse|beam|mortar|wall|bomb
     message: str = "Pick difficulty: 1 LOW · 2 HARD · 3 DOOM"
     damage_mult: float = 1.0
     range_mult: float = 1.0
@@ -345,9 +373,9 @@ def apply_difficulty(gs: GameState, key: str) -> None:
     gs.rat_count_m = float(d["rat_count"])
     gs.chew_m = float(d["chew"])
     gs.phase = "idle"
-    gs.message = f"{d['label']} mode · Q/W/E guns · A wall · B bomb · ENTER start"
-    gs.banner_text = d["label"]
-    gs.banner_t = 1.1
+    gs.message = f"{d['label']}: Q bolts · W laser · E mortar · A wall · B bomb · ENTER wave"
+    gs.banner_text = ""
+    gs.banner_t = 0.0
 
 
 def burst(
@@ -386,9 +414,9 @@ def start_wave(gs: GameState) -> None:
     gs.spawn_timer = 0.2
     gs.phase = "spawn"
     gs.message = f"WAVE {gs.wave}/{gs.wave_count} — neon rats"
-    gs.banner_text = f"WAVE {gs.wave}"
-    gs.banner_t = 1.2
-    gs.spawn_fx = 0.6
+    gs.banner_text = f"W{gs.wave}"
+    gs.banner_t = 0.7
+    gs.spawn_fx = 0.0
 
 
 def rat_stats(gs: GameState) -> tuple[float, float]:
@@ -410,8 +438,8 @@ def offer_upgrades(gs: GameState) -> None:
     gs.upgrade_options = keys[:3]
     gs.phase = "upgrade"
     gs.message = "Pick upgrade: press 1 / 2 / 3"
-    gs.banner_text = "UPGRADE CORE"
-    gs.banner_t = 0.9
+    gs.banner_text = ""
+    gs.banner_t = 0.0
 
 
 def apply_upgrade(gs: GameState, key: str) -> None:
@@ -614,42 +642,42 @@ def draw_bomb(surf: pygame.Surface, bomb: Bomb, C: dict, t: float) -> None:
         surf.blit(ring, (x - int(bomb.radius), y - int(bomb.radius)))
 
 
-def draw_turret(surf: pygame.Surface, t: Turret, selected: bool, pulse: float, C: dict, range_mult: float) -> None:
+def draw_turret(surf: pygame.Surface, t: Turret, pulse: float, C: dict) -> None:
     wd = weapon_def(t.kind)
     color = weapon_color(t.kind)
     lime = C["neon_lime"]
     pop = 1.0 + t.spawn_pop * 0.9
     x, y = int(t.x), int(t.y)
     hum = 0.65 + 0.35 * math.sin(pulse * 5 + t.x * 0.05)
-    range_px = wd["range"] * range_mult
-
-    if selected:
-        pygame.draw.circle(surf, tuple(max(0, c // 5) for c in color), (x, y), int(range_px), 1)
+    mode = wd["mode"]
 
     pad_w, pad_h = int(36 * pop), int(12 * pop)
     pygame.draw.ellipse(surf, (20, 24, 40), (x - pad_w // 2, y + 7, pad_w, pad_h))
 
-    if t.kind == "needle":
-        body = [(x - 8, y + 8), (x - 8, y - 8), (x + 18, y)]
-        pygame.draw.polygon(surf, tuple(int(c * 0.25) for c in color), body)
-        pygame.draw.polygon(surf, color, body, 2)
-        pygame.draw.line(surf, color, (x + 10, y - 3), (x + 28, y - 3), 2)
-        pygame.draw.line(surf, color, (x + 10, y + 3), (x + 28, y + 3), 2)
-        mx = x + 30
-        pygame.draw.circle(surf, color, (mx, y - 3), 2)
-        pygame.draw.circle(surf, color, (mx, y + 3), 2)
-    elif t.kind == "rail":
-        pygame.draw.rect(surf, tuple(int(c * 0.22) for c in color), (x - 14, y - 12, 28, 24), border_radius=4)
-        pygame.draw.rect(surf, color, (x - 14, y - 12, 28, 24), 2, border_radius=4)
-        for i in range(3):
-            pygame.draw.circle(surf, color, (x - 4 + i * 5, y), 5, 1)
-        barrel = int(34 * pop + t.flash * 8)
-        pygame.draw.rect(surf, tuple(int(c * 0.4) for c in color), (x + 10, y - 5, barrel, 10), border_radius=2)
-        pygame.draw.rect(surf, color, (x + 10, y - 5, barrel, 10), 2, border_radius=2)
-        pygame.draw.line(surf, lime, (x + 14, y), (x + 10 + barrel - 4, y), 1)
-        mx = x + 12 + barrel
-        pygame.draw.circle(surf, color, (mx, y), 5, 2)
+    if mode == "laser":
+        # dish + emitter lens
+        pygame.draw.circle(surf, tuple(int(c * 0.22) for c in color), (x, y), int(14 * pop))
+        pygame.draw.circle(surf, color, (x, y), int(14 * pop), 2)
+        pygame.draw.circle(surf, (200, 255, 255), (x + 4, y), int(5 + t.flash * 4))
+        pygame.draw.line(surf, color, (x + 8, y - 2), (x + 26, y - 2), 2)
+        pygame.draw.line(surf, color, (x + 8, y + 2), (x + 26, y + 2), 2)
+        if t.flash > 0:
+            pygame.draw.circle(surf, (255, 255, 255), (x + 28, y), int(3 + t.flash * 8))
+    elif mode == "mortar":
+        # stubby tube angled up
+        pygame.draw.rect(surf, tuple(int(c * 0.22) for c in color), (x - 12, y - 6, 22, 18), border_radius=3)
+        pygame.draw.rect(surf, color, (x - 12, y - 6, 22, 18), 2, border_radius=3)
+        tube = [
+            (x + 2, y + 4),
+            (x + 10, y - 18 - int(t.flash * 6)),
+            (x + 18, y - 14 - int(t.flash * 6)),
+            (x + 10, y + 6),
+        ]
+        pygame.draw.polygon(surf, tuple(int(c * 0.35) for c in color), tube)
+        pygame.draw.polygon(surf, color, tube, 2)
+        pygame.draw.circle(surf, color, (x + 14, y - 16), 4, 2)
     else:
+        # pulse hex coil
         hr = int(13 * pop)
         hex_pts = [
             (
@@ -663,21 +691,19 @@ def draw_turret(surf: pygame.Surface, t: Turret, selected: bool, pulse: float, C
         barrel = int(22 * pop + t.flash * 6)
         pygame.draw.rect(surf, tuple(int(c * 0.35) for c in color), (x + 6, y - 4, barrel, 8), border_radius=3)
         pygame.draw.rect(surf, color, (x + 6, y - 4, barrel, 8), 2, border_radius=3)
-        mx = x + 8 + barrel
-        pygame.draw.circle(surf, color, (mx, y), 4, 2)
+        pygame.draw.circle(surf, color, (x + 8 + barrel, y), 4, 2)
 
     if t.hit_flash > 0:
         pygame.draw.circle(surf, (255, 255, 255), (x, y), int(16 + t.hit_flash * 10), 2)
 
-    glow_circle(surf, (x, y - (2 if t.kind == "rail" else 0)), int(4 + 2 * hum + t.flash * 3), color, layers=3)
+    glow_circle(surf, (x, y), int(4 + 2 * hum + t.flash * 3), color, layers=3)
     led = lime if t.cooldown < 0.08 else ((255, 80, 80) if t.cooldown > wd["cooldown"] * 0.6 else C["neon_cyan"])
     pygame.draw.circle(surf, led, (x - 10, y - 12), 3)
 
-    if t.flash > 0:
+    if t.flash > 0 and mode == "bolt":
         fl = t.flash
-        tip_x = x + (36 if t.kind == "rail" else 28 if t.kind == "needle" else 30)
-        pygame.draw.circle(surf, lime, (tip_x, y), int(5 + fl * 12))
-        pygame.draw.circle(surf, (255, 255, 220), (tip_x + 2, y), int(2 + fl * 5))
+        pygame.draw.circle(surf, lime, (x + 30, y), int(5 + fl * 12))
+        pygame.draw.circle(surf, (255, 255, 220), (x + 32, y), int(2 + fl * 5))
 
     ratio = clamp(t.hp / t.max_hp, 0, 1)
     bar_c = lime if ratio > 0.45 else C["neon_orange"] if ratio > 0.2 else C["base"]
@@ -685,25 +711,43 @@ def draw_turret(surf: pygame.Surface, t: Turret, selected: bool, pulse: float, C
     pygame.draw.rect(surf, bar_c, (x - 16, y + 18, int(32 * ratio), 4))
 
 
-def detonate_bomb(gs: GameState, bomb: Bomb, C: dict) -> None:
-    burst(gs, bomb.x, bomb.y, C["neon_orange"], n=36, speed=280, life=0.55, size=4)
-    burst(gs, bomb.x, bomb.y, C["neon_magenta"], n=18, speed=180, life=0.4, size=3)
-    gs.shake = max(gs.shake, 0.55)
-    gs.floaters.append(Floater(bomb.x, bomb.y - 20, "BOOM", C["neon_orange"], life=0.9))
+def kill_rat(gs: GameState, rat: Rat, C: dict) -> None:
+    if rat in gs.rats:
+        gs.rats.remove(rat)
+    gs.energy = min(99, gs.energy + CONFIG["rat"]["reward"])
+    gs.kills += 1
+    gs.shake = max(gs.shake, 0.18)
+    burst(gs, rat.x, rat.y, C["neon_magenta"], n=18, speed=200, life=0.45, size=3.2)
+    gs.floaters.append(Floater(rat.x, rat.y - 28, "+ENERGY", C["neon_cyan"]))
+
+
+def aoe_damage(gs: GameState, x: float, y: float, radius: float, damage: float, C: dict, label: str = "BOOM") -> None:
+    burst(gs, x, y, C["neon_orange"], n=28, speed=240, life=0.5, size=3.5)
+    burst(gs, x, y, C["neon_magenta"], n=14, speed=160, life=0.35, size=2.5)
+    gs.shake = max(gs.shake, 0.45)
+    gs.floaters.append(Floater(x, y - 20, label, C["neon_orange"], life=0.85))
     dead: list[Rat] = []
     for rat in gs.rats:
-        if math.hypot(rat.x - bomb.x, rat.y - bomb.y) <= bomb.radius:
-            rat.hp -= bomb.damage
+        if math.hypot(rat.x - x, rat.y - y) <= radius:
+            rat.hp -= damage
             rat.hit_flash = 0.2
-            gs.floaters.append(Floater(rat.x, rat.y - 18, f"-{int(bomb.damage)}", C["neon_orange"]))
+            gs.floaters.append(Floater(rat.x, rat.y - 18, f"-{int(damage)}", C["neon_orange"]))
             if rat.hp <= 0:
                 dead.append(rat)
     for rat in dead:
-        if rat in gs.rats:
-            gs.rats.remove(rat)
-        gs.energy = min(99, gs.energy + CONFIG["rat"]["reward"])
-        gs.kills += 1
-        burst(gs, rat.x, rat.y, C["neon_magenta"], n=16, speed=200, life=0.4, size=3)
+        kill_rat(gs, rat, C)
+
+
+def detonate_bomb(gs: GameState, bomb: Bomb, C: dict) -> None:
+    aoe_damage(gs, bomb.x, bomb.y, bomb.radius, bomb.damage, C, "BOOM")
+
+
+def point_near_segment(px: float, py: float, x0: float, y0: float, x1: float, y1: float, thick: float) -> bool:
+    dx, dy = x1 - x0, y1 - y0
+    length = math.hypot(dx, dy) or 1.0
+    t = clamp(((px - x0) * dx + (py - y0) * dy) / (length * length), 0.0, 1.0)
+    cx, cy = x0 + t * dx, y0 + t * dy
+    return math.hypot(px - cx, py - cy) <= thick
 
 
 def main() -> None:
@@ -722,8 +766,8 @@ def main() -> None:
     C = CONFIG["colors"]
     build_keys = {
         "q": "pulse",
-        "w": "needle",
-        "e": "rail",
+        "w": "beam",
+        "e": "mortar",
         "a": "wall",
         "b": "bomb",
     }
@@ -760,12 +804,12 @@ def main() -> None:
                     name = build_keys[pygame.key.name(event.key)]
                     gs.selected_build = name
                     if name == "wall":
-                        gs.message = f"WALL selected — {CONFIG['wall']['blurb']} · ${build_cost(gs)}"
+                        gs.message = f"WALL ready (${build_cost(gs)}) — click a lane or SPACE to place"
                     elif name == "bomb":
-                        gs.message = f"BOMB selected — {CONFIG['bomb']['blurb']} · ${build_cost(gs)}"
+                        gs.message = f"BOMB ready (${build_cost(gs)}) — click a lane or SPACE to drop"
                     else:
                         wd = weapon_def(name)
-                        gs.message = f"{wd['label']} — {wd['blurb']} · ${build_cost(gs)}"
+                        gs.message = f"{wd['label']} ready (${build_cost(gs)}) — click lane / SPACE · ENTER = wave"
                 elif event.key in (pygame.K_1, pygame.K_KP1):
                     if gs.phase == "upgrade" and gs.upgrade_options:
                         apply_upgrade(gs, gs.upgrade_options[0])
@@ -784,8 +828,6 @@ def main() -> None:
                 elif event.key == pygame.K_SPACE:
                     if gs.phase in ("idle", "spawn", "clear"):
                         place_build(gs, gs.selected_lane, h)
-                        if gs.phase == "idle" and (gs.turrets or gs.walls or gs.bombs):
-                            start_wave(gs)
                 elif event.key == pygame.K_RETURN and gs.phase == "idle":
                     start_wave(gs)
                 elif event.key == pygame.K_r and gs.phase in ("win", "lose"):
@@ -793,7 +835,6 @@ def main() -> None:
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if gs.phase == "menu":
                     _, my = event.pos
-                    # rough click zones for difficulty cards
                     for i, key in enumerate(CONFIG["diff_order"]):
                         cy = 200 + i * 70
                         if abs(my - cy) < 28:
@@ -808,8 +849,6 @@ def main() -> None:
                 best = min(range(CONFIG["lanes"]), key=lambda i: abs(lane_y(i, h) - my))
                 gs.selected_lane = best
                 place_build(gs, best, h)
-                if gs.phase == "idle" and (gs.turrets or gs.walls or gs.bombs):
-                    start_wave(gs)
 
         if gs.phase not in ("menu", "upgrade", "win", "lose", "idle"):
             gs.energy = min(99, gs.energy + gs.energy_per_sec * gs.energy_mult * dt)
@@ -898,6 +937,7 @@ def main() -> None:
 
             for tur in gs.turrets:
                 wd = weapon_def(tur.kind)
+                mode = wd["mode"]
                 dmg = wd["damage"] * gs.damage_mult
                 rng = wd["range"] * gs.range_mult
                 cd = wd["cooldown"] * gs.cooldown_mult
@@ -907,7 +947,6 @@ def main() -> None:
                 tur.hit_flash = max(0.0, tur.hit_flash - dt * 4)
                 if tur.cooldown > 0:
                     continue
-                # cross-lane: any rat in range by distance
                 candidates = [
                     r
                     for r in gs.rats
@@ -916,33 +955,67 @@ def main() -> None:
                 if not candidates:
                     continue
                 target = min(candidates, key=lambda r: math.hypot(r.x - tur.x, r.y - tur.y))
-                pierce = int(wd.get("pierce", 0))
-                tip = 34 if tur.kind == "rail" else 28 if tur.kind == "needle" else 30
-                # aim tip toward target
                 ang = math.atan2(target.y - tur.y, target.x - tur.x)
+                col = weapon_color(tur.kind)
+
+                if mode == "laser":
+                    # hitscan beam — burns every rat on the line
+                    tip = 28
+                    x0 = tur.x + math.cos(ang) * tip
+                    y0 = tur.y + math.sin(ang) * tip
+                    x1 = tur.x + math.cos(ang) * rng
+                    y1 = tur.y + math.sin(ang) * rng
+                    gs.lasers.append(LaserBeam(x0, y0, x1, y1, life=0.11, max_life=0.11))
+                    tur.flash = 0.25
+                    tur.cooldown = cd
+                    dead: list[Rat] = []
+                    for r in gs.rats:
+                        if point_near_segment(r.x, r.y, x0, y0, x1, y1, CONFIG["rat"]["radius"] + 6):
+                            r.hp -= dmg
+                            r.hit_flash = 0.12
+                            if r.hp <= 0:
+                                dead.append(r)
+                    for r in dead:
+                        kill_rat(gs, r, C)
+                    continue
+
+                if mode == "mortar":
+                    # lob arcing shell toward target
+                    dx = target.x - tur.x
+                    flight = clamp(abs(dx) / 220.0, 0.55, 1.35)
+                    vx = dx / flight
+                    vy = (target.y - tur.y) / flight - 0.5 * 420 * flight
+                    gs.shells.append(
+                        Shell(
+                            x=tur.x + 10,
+                            y=tur.y - 16,
+                            vx=vx,
+                            vy=vy,
+                            damage=dmg,
+                            blast=float(wd["blast"]),
+                        )
+                    )
+                    tur.flash = 0.35
+                    tur.cooldown = cd
+                    burst(gs, tur.x + 12, tur.y - 16, col, n=6, speed=80, life=0.2, size=2)
+                    continue
+
+                # pulse bolts
+                tip = 30
                 bx = tur.x + math.cos(ang) * tip
                 by = tur.y + math.sin(ang) * tip
                 gs.bullets.append(
-                    Bullet(
-                        bx,
-                        by,
-                        target.x,
-                        target.y,
-                        dmg,
-                        kind=tur.kind,
-                        pierce_left=pierce,
-                        life=0.55 if tur.kind == "rail" else 0.4,
-                    )
+                    Bullet(bx, by, target.x, target.y, dmg, kind=tur.kind, pierce_left=0, life=0.4)
                 )
                 tur.cooldown = cd
                 tur.flash = 0.3
-                burst(gs, bx, by, weapon_color(tur.kind), n=8, speed=110, life=0.2, size=2.5)
+                burst(gs, bx, by, col, n=8, speed=110, life=0.2, size=2.5)
 
             for wall in gs.walls:
                 wall.spawn_pop = max(0.0, wall.spawn_pop - dt)
                 wall.hit_flash = max(0.0, wall.hit_flash - dt * 4)
 
-            # bombs fuse + detonate
+            # panic bombs fuse
             alive_bombs: list[Bomb] = []
             for bomb in gs.bombs:
                 bomb.fuse -= dt
@@ -953,35 +1026,57 @@ def main() -> None:
                     alive_bombs.append(bomb)
             gs.bombs = alive_bombs
 
+            # mortar shells
+            alive_shells: list[Shell] = []
+            for s in gs.shells:
+                s.life -= dt
+                s.trail.append((s.x, s.y))
+                if len(s.trail) > 12:
+                    s.trail.pop(0)
+                s.x += s.vx * dt
+                s.y += s.vy * dt
+                s.vy += 420 * dt
+                # explode near any rat or when falling past lane band
+                hit_rat = next(
+                    (r for r in gs.rats if math.hypot(r.x - s.x, r.y - s.y) < CONFIG["rat"]["radius"] + 10),
+                    None,
+                )
+                landed = s.vy > 0 and hit_rat is not None
+                grounded = s.vy > 80 and any(abs(s.y - lane_y(i, h)) < 18 for i in range(CONFIG["lanes"]))
+                if landed or grounded or s.life <= 0 or s.y > h:
+                    aoe_damage(gs, s.x, s.y, s.blast, s.damage, C, "THUMP")
+                else:
+                    alive_shells.append(s)
+            gs.shells = alive_shells
+
+            # laser visuals fade
+            alive_l: list[LaserBeam] = []
+            for beam in gs.lasers:
+                beam.life -= dt
+                if beam.life > 0:
+                    alive_l.append(beam)
+            gs.lasers = alive_l
+
+            # pulse bolts
             alive_b: list[Bullet] = []
             for b in gs.bullets:
                 b.life -= dt
                 b.trail.append((b.x, b.y))
-                if len(b.trail) > (14 if b.kind == "rail" else 8):
+                if len(b.trail) > 8:
                     b.trail.pop(0)
-                speed = 14 if b.kind == "needle" else 10 if b.kind == "pulse" else 8
                 dx = b.tx - b.x
                 dy = b.ty - b.y
-                dist = math.hypot(dx, dy) or 1.0
-                step = min(1.0, dt * (speed + 8))
+                step = min(1.0, dt * 18)
                 b.x += dx * step
                 b.y += dy * step
-                if b.kind == "rail":
-                    # keep flying along aim direction for pierce
-                    b.x += (dx / dist) * 380 * dt
-                    b.y += (dy / dist) * 380 * dt
-                    b.tx = b.x + dx
-                    b.ty = b.y + dy
 
                 col = weapon_color(b.kind)
-                hits_this_frame = []
-                for r in gs.rats:
-                    rid = id(r)
-                    if rid in b.hit_ids:
-                        continue
-                    if math.hypot(r.x - b.x, r.y - b.y) < CONFIG["rat"]["radius"] + 8:
-                        hits_this_frame.append(r)
-
+                hits_this_frame = [
+                    r
+                    for r in gs.rats
+                    if id(r) not in b.hit_ids
+                    and math.hypot(r.x - b.x, r.y - b.y) < CONFIG["rat"]["radius"] + 8
+                ]
                 if hits_this_frame:
                     hit = min(hits_this_frame, key=lambda r: math.hypot(r.x - b.x, r.y - b.y))
                     b.hit_ids.add(id(hit))
@@ -990,16 +1085,7 @@ def main() -> None:
                     burst(gs, b.x, b.y, col, n=10, speed=140, life=0.3)
                     gs.floaters.append(Floater(hit.x, hit.y - 18, f"-{int(b.damage)}", col))
                     if hit.hp <= 0:
-                        if hit in gs.rats:
-                            gs.rats.remove(hit)
-                        gs.energy = min(99, gs.energy + CONFIG["rat"]["reward"])
-                        gs.kills += 1
-                        gs.shake = max(gs.shake, 0.18)
-                        burst(gs, hit.x, hit.y, C["neon_magenta"], n=22, speed=220, life=0.5, size=3.5)
-                        gs.floaters.append(Floater(hit.x, hit.y - 28, "+ENERGY", C["neon_cyan"]))
-                    if b.pierce_left > 0:
-                        b.pierce_left -= 1
-                        alive_b.append(b)
+                        kill_rat(gs, hit, C)
                 elif b.life > 0 and 0 < b.x < w + 40 and -20 < b.y < h + 20:
                     alive_b.append(b)
             gs.bullets = alive_b
@@ -1081,8 +1167,8 @@ def main() -> None:
         bx = 18
         items = [
             ("pulse", f"[Q] PULSE ${build_cost(gs, 'pulse')}", weapon_color("pulse")),
-            ("needle", f"[W] NEEDLE ${build_cost(gs, 'needle')}", weapon_color("needle")),
-            ("rail", f"[E] RAIL ${build_cost(gs, 'rail')}", weapon_color("rail")),
+            ("beam", f"[W] BEAM ${build_cost(gs, 'beam')}", weapon_color("beam")),
+            ("mortar", f"[E] MORTAR ${build_cost(gs, 'mortar')}", weapon_color("mortar")),
             ("wall", f"[A] WALL ${build_cost(gs, 'wall')}", C["wall"]),
             ("bomb", f"[B] BOMB ${build_cost(gs, 'bomb')}", C["neon_orange"]),
         ]
@@ -1107,23 +1193,43 @@ def main() -> None:
         for i in range(CONFIG["lanes"]):
             y = lane_y(i, h)
             selected = i == gs.selected_lane
-            col = C["neon_cyan"] if selected else C["lane"]
-            pygame.draw.line(canvas, col, (70, int(y)), (w - 30, int(y)), 3 if selected else 1)
-            canvas.blit(font_small.render(f"LANE {i + 1}", True, col), (74, int(y) - 24))
-
-        if gs.spawn_fx > 0:
-            gate = pygame.Surface((40, h - 160), pygame.SRCALPHA)
-            gate.fill((255, 45, 149, int(120 * gs.spawn_fx)))
-            canvas.blit(gate, (w - 50, 90))
+            col = (60, 90, 140) if selected else C["lane"]
+            pygame.draw.line(canvas, col, (70, int(y)), (w - 30, int(y)), 2 if selected else 1)
+            tag = C["neon_cyan"] if selected else C["muted"]
+            canvas.blit(font_small.render(f"L{i + 1}", True, tag), (74, int(y) - 22))
 
         for wall in gs.walls:
             draw_wall(canvas, wall, C)
         for tur in gs.turrets:
-            draw_turret(canvas, tur, tur.lane == gs.selected_lane, gs.time, C, gs.range_mult)
+            draw_turret(canvas, tur, gs.time, C)
         for bomb in gs.bombs:
             draw_bomb(canvas, bomb, C, gs.time)
         for rat in gs.rats:
             draw_rat(canvas, rat, C["neon_magenta"], gs.time)
+
+        # laser beams
+        for beam in gs.lasers:
+            a = clamp(beam.life / beam.max_life, 0, 1)
+            col = tuple(int(c * a) for c in C["neon_cyan"])
+            p0 = (int(beam.x0), int(beam.y0))
+            p1 = (int(beam.x1), int(beam.y1))
+            pygame.draw.line(canvas, tuple(max(0, c // 3) for c in col), p0, p1, 5)
+            pygame.draw.line(canvas, col, p0, p1, 2)
+            pygame.draw.circle(canvas, (255, 255, 255), p0, 3)
+            pygame.draw.circle(canvas, col, p1, 4)
+
+        # mortar shells
+        for s in gs.shells:
+            col = C["neon_magenta"]
+            if len(s.trail) >= 2:
+                pygame.draw.lines(
+                    canvas,
+                    tuple(max(0, c // 3) for c in col),
+                    False,
+                    [(int(x), int(y)) for x, y in s.trail],
+                    2,
+                )
+            glow_circle(canvas, (int(s.x), int(s.y)), 4, col, layers=2)
 
         for b in gs.bullets:
             col = weapon_color(b.kind)
@@ -1133,10 +1239,9 @@ def main() -> None:
                     tuple(max(0, c // 3) for c in col),
                     False,
                     [(int(x), int(y)) for x, y in b.trail],
-                    2 if b.kind != "rail" else 3,
+                    2,
                 )
-            rad = 5 if b.kind == "rail" else 2 if b.kind == "needle" else 3
-            glow_circle(canvas, (int(b.x), int(b.y)), rad, col, layers=2)
+            glow_circle(canvas, (int(b.x), int(b.y)), 3, col, layers=2)
 
         for p in gs.particles:
             a = clamp(p.life / p.max_life, 0, 1)
@@ -1147,19 +1252,17 @@ def main() -> None:
 
         if gs.phase == "idle":
             tip = font_small.render(
-                "Q/W/E guns · A wall · B bomb · 1/2/3 lane · SPACE place · ENTER wave",
+                "Q bolts · W laser · E mortar bombs · A wall · B panic bomb · ENTER start",
                 True,
-                C["neon_lime"],
+                C["muted"],
             )
             canvas.blit(tip, (18, h - 52))
 
-        if gs.banner_t > 0 and gs.banner_text:
-            overlay = pygame.Surface((w, h), pygame.SRCALPHA)
-            fade = clamp(gs.banner_t / 0.4, 0, 1) if gs.banner_t < 0.4 else 1.0
-            overlay.fill((0, 0, 0, int(140 * fade)))
-            canvas.blit(overlay, (0, 0))
-            text = font_big.render(gs.banner_text, True, C["neon_cyan"])
-            canvas.blit(text, text.get_rect(center=(w // 2, h // 2 - 20)))
+        # tiny wave tag — no full-screen blackout
+        if gs.banner_t > 0 and gs.banner_text and gs.phase not in ("win", "lose"):
+            fade = clamp(gs.banner_t / 0.35, 0, 1)
+            text = font.render(gs.banner_text, True, tuple(int(c * fade) for c in C["neon_cyan"]))
+            canvas.blit(text, (w - 80, 18))
 
         if gs.phase == "upgrade":
             overlay = pygame.Surface((w, h), pygame.SRCALPHA)
