@@ -355,19 +355,77 @@ def draw_rat(surf: pygame.Surface, rat: Rat, color: tuple[int, int, int], t: flo
 
 
 def draw_turret(surf: pygame.Surface, t: Turret, selected: bool, pulse: float, C: dict, range_px: float) -> None:
-    pop = 1.0 + t.spawn_pop * 0.8
-    rad = int(11 * pop)
-    glow_circle(surf, (int(t.x), int(t.y)), rad, C["neon_orange"], layers=5)
-    # spinning ring
-    for a in range(0, 360, 90):
-        ang = math.radians(a + pulse * 120)
-        px = int(t.x + math.cos(ang) * (14 + t.flash * 6))
-        py = int(t.y + math.sin(ang) * (14 + t.flash * 6))
-        pygame.draw.circle(surf, C["neon_cyan"], (px, py), 2)
-    if t.flash > 0:
-        pygame.draw.circle(surf, C["neon_lime"], (int(t.x + 16), int(t.y)), int(4 + t.flash * 10))
+    """Neon coil turret: pad → hex body → barrel toward rats → muzzle glow."""
+    pop = 1.0 + t.spawn_pop * 0.9
+    x, y = int(t.x), int(t.y)
+    orange, cyan, lime = C["neon_orange"], C["neon_cyan"], C["neon_lime"]
+    hum = 0.65 + 0.35 * math.sin(pulse * 5 + t.x * 0.05)
+
     if selected:
-        pygame.draw.circle(surf, (70, 45, 0), (int(t.x), int(t.y)), int(range_px), 1)
+        pygame.draw.circle(surf, (55, 35, 0), (x, y), int(range_px), 1)
+        # soft range wash
+        rng = pygame.Surface((int(range_px) * 2, int(range_px) * 2), pygame.SRCALPHA)
+        pygame.draw.circle(rng, (255, 140, 0, 18), (int(range_px), int(range_px)), int(range_px))
+        surf.blit(rng, (x - int(range_px), y - int(range_px)))
+
+    # ground pad / shadow
+    pad_w, pad_h = int(34 * pop), int(12 * pop)
+    pygame.draw.ellipse(surf, (20, 24, 40), (x - pad_w // 2, y + 6, pad_w, pad_h))
+    for i in range(3, 0, -1):
+        shade = tuple(int(c * (0.2 + 0.15 * i) * hum) for c in orange)
+        pygame.draw.ellipse(surf, shade, (x - pad_w // 2 - i, y + 6 - i, pad_w + i * 2, pad_h + i), 1)
+
+    # hex chassis
+    hr = int(13 * pop)
+    hex_pts = [
+        (x + int(hr * math.cos(math.radians(a + pulse * 25))), y + int(hr * math.sin(math.radians(a + pulse * 25))))
+        for a in range(0, 360, 60)
+    ]
+    fill = tuple(int(c * 0.2 * hum) for c in orange)
+    pygame.draw.polygon(surf, fill, hex_pts)
+    for i in range(3, 0, -1):
+        glow = tuple(int(c * (0.25 + 0.2 * i)) for c in orange)
+        pygame.draw.polygon(surf, glow, hex_pts, 1)
+    pygame.draw.polygon(surf, orange, hex_pts, 2)
+
+    # inner energy core
+    core_r = int(5 + 2 * hum + t.flash * 4)
+    glow_circle(surf, (x, y), core_r, cyan if t.flash <= 0 else lime, layers=3)
+
+    # rotating coil dots around hex
+    for a in range(0, 360, 45):
+        ang = math.radians(a + pulse * 140)
+        px = x + int(math.cos(ang) * (hr + 5 + t.flash * 4))
+        py = y + int(math.sin(ang) * (hr + 5 + t.flash * 4))
+        pygame.draw.circle(surf, cyan, (px, py), 2)
+
+    # barrel aimed right (rats come from right)
+    barrel_len = int(22 * pop + t.flash * 6)
+    by0, by1 = y - 4, y + 4
+    # barrel glow underlay
+    pygame.draw.rect(surf, tuple(int(c * 0.35) for c in orange), (x + 6, by0 - 1, barrel_len, 10), border_radius=3)
+    pygame.draw.rect(surf, orange, (x + 8, by0, barrel_len - 2, 8), 2, border_radius=3)
+    # rails
+    pygame.draw.line(surf, cyan, (x + 10, y - 2), (x + 8 + barrel_len - 4, y - 2), 1)
+    pygame.draw.line(surf, cyan, (x + 10, y + 2), (x + 8 + barrel_len - 4, y + 2), 1)
+    # muzzle tip
+    mx = x + 8 + barrel_len
+    pygame.draw.circle(surf, orange, (mx, y), 4, 2)
+    pygame.draw.circle(surf, (255, 220, 160), (mx, y), 2)
+
+    # status LED
+    led = lime if t.cooldown < 0.08 else ((255, 80, 80) if t.cooldown > 0.35 else cyan)
+    pygame.draw.circle(surf, led, (x - 8, y - 10), 3)
+
+    # muzzle flash burst
+    if t.flash > 0:
+        fl = t.flash
+        pygame.draw.circle(surf, lime, (mx + 4, y), int(5 + fl * 14))
+        pygame.draw.circle(surf, (255, 255, 220), (mx + 6, y), int(2 + fl * 6))
+        for ang in (-0.5, 0, 0.5):
+            ex = mx + int(math.cos(ang) * (10 + fl * 18))
+            ey = y + int(math.sin(ang) * (6 + fl * 10))
+            pygame.draw.line(surf, lime, (mx, y), (ex, ey), 2)
 
 
 def main() -> None:
@@ -507,10 +565,10 @@ def main() -> None:
                 if not candidates:
                     continue
                 target = min(candidates, key=lambda r: r.x)
-                gs.bullets.append(Bullet(tur.x + 10, tur.y, target.x, target.y, dmg))
+                gs.bullets.append(Bullet(tur.x + 26, tur.y, target.x, target.y, dmg))
                 tur.cooldown = cd
-                tur.flash = 0.2
-                burst(gs, tur.x + 14, tur.y, C["neon_lime"], n=5, speed=80, life=0.15, size=2)
+                tur.flash = 0.28
+                burst(gs, tur.x + 30, tur.y, C["neon_lime"], n=8, speed=110, life=0.2, size=2.5)
 
             alive_b: list[Bullet] = []
             for b in gs.bullets:
